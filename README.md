@@ -52,7 +52,8 @@ Enjoy
 
 #### Installation <img src="https://github.com/Wissem-Zidi/icons/blob/main/settings.svg" alt="" height="25">
 
-Download the latest installer and executed.
+<!-- Download the latest installer **https://github.com/wissemzidi/Anti-AFK/releases/latest** and execute it. -->
+Download the latest installer **https://github.com/wissemzidi/Anti-AFK/releases/latest/install.exe** and execute it.
 Complete the app setup.
 Then Enjoy antiAFK by searching it in the search box and running it.
 

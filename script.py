@@ -4,13 +4,13 @@ from PyQt5.QtGui import QIcon
 from threading import Thread
 from PyQt5.uic import loadUi
 from PyQt5.QtCore import Qt
+from os import _exit, path
 from random import randint
+import win32api, win32con
 from time import sleep
-from os import _exit
+import pyautogui
 import json
 
-KEYBOARD = keyboard.Controller()
-MOUSE = mouse.Controller()
 
 def main() :
     """
@@ -29,20 +29,23 @@ def main() :
     mainThread = Thread(target=loopThread, args=[time], daemon=True)
     mainThread.start()
 
-    
+
 def stopMain() :
     global endProgramme
     endProgramme = True
+    win.timeLeft.setText("STOPED")
     return
 
 
 def loopThread(time) :
     global endProgramme
+    mouseLeftAlowed = win.mouseLeft.isChecked()
+    mouseRightAlowed = win.mouseRight.isChecked()
+    mouseMoveAlowed = win.mouseMovement.isChecked()
+    sleep(1)
     while not endProgramme and time > 0 :
-        if randint(0, 10) :
-            randKeyboard()
-        else :
-            randMouse()
+        randKeyboard()
+        randMouse(mouseLeftAlowed, mouseRightAlowed, mouseMoveAlowed)
         sleepTime = randint(0, 10) / 100
         sleep(sleepTime)
         if time :
@@ -50,27 +53,42 @@ def loopThread(time) :
         win.timeLeft.setText("Time Left : "+str(int(time))+"s")
     if win.autoExit.isChecked():
         _exit(0)
+    win.timeLeft.setText("STOPED")
     endProgramme = False
 
 
-def randMouse() :
-    screen = App.primaryScreen()
-    size = screen.size()
-    h, v = size.width(), size.height()
-    if randint(0, 10) :
-        # MOUSE.move(randint(0, h), randint(0, v))
-        MOUSE.click(mouse.Button.left)
-    else :
-        # MOUSE.move(randint(0, h), randint(0, v))
-        MOUSE.click(mouse.Button.right)
+def randMouse(mouseLeftAlowed, mouseRightAlowed, mouseMoveAlowed) :
+    r = randint(0, 10)
+    if mouseLeftAlowed and r in [0, 1, 2] :
+        print("left click !")
+        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0)
+        sleep(.01)
+        win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0)
+        # pyautogui.leftClick(duration=0.2, interval=0.1)
+    if mouseRightAlowed and r == 9:
+        print("right click !")
+        win32api.mouse_event(win32con.MOUSEEVENTF_RIGHTDOWN, 0, 0)
+        sleep(.01)
+        win32api.mouse_event(win32con.MOUSEEVENTF_RIGHTUP, 0, 0)
+        # pyautogui.leftClick(duration=0.2, interval=0.1)
+    if mouseMoveAlowed and r in [1, 2, 3, 4, 5, 6, 7, 8] :
+        screen = App.primaryScreen()
+        size = screen.size()
+        w, h = size.width(), size.height()
+        win32api.mouse_event(win32con.MOUSEEVENTF_MOVE, randint(20, w // 2), randint(20, h // 2), 0, 0)
 
 def randKeyboard():
+    if len(alowedMoves) == 0 :
+        return
+    
     r = randint(0, len(alowedMoves) - 1)
-    for i in range(randint(1, 20)) :
-        if alowedMoves[r] == "Space" :
-            KEYBOARD.press(keyboard.Key.space)
-        else :
-            KEYBOARD.press(alowedMoves[r])
+    pressKey(alowedMoves[r], randint(0, 500) / 100)
+
+def pressKey(key, duration):
+    pyautogui.keyDown(key)
+    sleep(duration)
+    pyautogui.keyUp(key)
+    return
 
 
 def on_press(key) :
@@ -80,6 +98,7 @@ def on_press(key) :
     elif key == keyboard.Key.f1:
         endProgramme = False
         main()
+
 
 def initWin(winTitle):
     """
@@ -93,11 +112,11 @@ def initWin(winTitle):
     """
     win.setWindowTitle(winTitle)
     win.setWindowIcon(QIcon('./ui/icon.png'))
-    win.setWindowFlags(Qt.FramelessWindowHint)
+    win.setWindowFlags(Qt.FramelessWindowHint | Qt.Window | Qt.CustomizeWindowHint | Qt.WindowStaysOnTopHint)
     # win.setAttribute(Qt.WA_TranslucentBackground)
 
     # rendering Images
-    win.exitBtn.setIcon(QIcon(":/exit/exit.png"))
+    # win.exitBtn.setIcon(QIcon(":/exit/exit.png"))
     # win.exitBtn.setText("")
 
     # handling events
@@ -124,20 +143,34 @@ def setAlowedMovesInUi() :
 
 def getAlowedMoves() :
     global alowedMoves
-    with open("./config/config.json", "r") as f :
-        data = json.loads(f.read())
-        if len(data["moves"]) != "0":
-            alowedMoves = data["moves"]
+    if path.exists("./config/config.json"):
+        try:
+            with open("./config/config.json", "r") as f :
+                data = json.loads(f.read())
+                if len(data["moves"]) != "0":
+                    alowedMoves = data["moves"]
+        except Exception:
+            pass
 
 
-def saveMoves(moves) :
+def saveKeys(moves, setToUi) :
     global alowedMoves
     alowedMoves = moves
     data = {}
     data["moves"] = moves
     with open("./config/config.json", "w") as f :
         f.write(json.dumps(data))
-    setAlowedMovesInUi()
+    if setToUi :
+        setAlowedMovesInUi()
+
+
+def changeAlowedKeys() :
+    global alowedMoves
+    alowedMoves = []
+    for key in allKeysList :
+        if (getattr(win, key+"Btn").isChecked()) :
+            alowedMoves.append(key)
+    saveKeys(alowedMoves, False)
 
 
 def mousePressEvent(event):
@@ -163,6 +196,8 @@ def minimize():
 
 
 endProgramme = False
+KEYBOARD = keyboard.Controller()
+MOUSE = mouse.Controller()
 listener = keyboard.Listener(on_press=on_press)
 listener.start()
 
@@ -171,7 +206,10 @@ win = loadUi("./ui/main.ui")
 
 alowedMoves = ["Z", "Q", "S", "D", "Space"]
 allKeysList = ["Z", "Q", "S", "D", "Space", "W", "A"]
-initWin("Anti AFK")
+initWin(winTitle="Anti AFK")
+
+for carac in allKeysList:
+    getattr(win, carac+"Btn").stateChanged.connect(changeAlowedKeys)
 
 mainThread = None
 
@@ -181,8 +219,9 @@ win.startWithoutTimerBtn.clicked.connect(main)
 win.minimizeBtn.clicked.connect(minimize)
 win.exitBtn.clicked.connect(_exit)
 
-win.azertyPreset.clicked.connect(lambda: saveMoves(["Z", "Q", "S", "D", "Space"]))
-win.qwertyPreset.clicked.connect(lambda: saveMoves(["W", "A", "S", "D", "Space"]))
+win.azertyPreset.clicked.connect(lambda: saveKeys(["Z", "Q", "S", "D", "Space"], True))
+win.qwertyPreset.clicked.connect(lambda: saveKeys(["W", "A", "S", "D", "Space"], True))
+win.resetPreset.clicked.connect(lambda: saveKeys([], True))
 
 win.show()
 App.exec()
